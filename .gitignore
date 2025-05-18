@@ -1,0 +1,16 @@
+
+~$*
+*.tmp
+*.log
+
+.vscode/
+Thumbs.db
+.DS_Store
+
+*.axf
+*.uvoptx
+*.uvprojx
+*.lst
+*.map
+*.crf
+*.o
