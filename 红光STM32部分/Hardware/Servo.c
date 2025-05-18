@@ -110,8 +110,8 @@ void ServoY_ResetAngle(void)
   */
 void ServoX_SetAngle(int16_t Compare)//1500
 {
-	uint16_t Angle = 1527 + Compare * 500 / 100;
-	TIM_SetCompare2(TIM2,Angle);
+	uint16_t Angle = 1527 + Compare * 500 / 100;     //注意：500 / 100 是为了避免使用浮点数计算，但系数原来是7.41，其是由 2000 除以 270°得到，即分辨率。
+	TIM_SetCompare2(TIM2,Angle);					 //在此减小是为了提高精度，让每步距离走小，但需要考虑其可移动的最大距离要大于屏幕边框。Y轴同理
 }
 
 /**
