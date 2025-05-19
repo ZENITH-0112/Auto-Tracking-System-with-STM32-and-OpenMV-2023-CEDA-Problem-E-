@@ -2,7 +2,6 @@
 
 import sensor, image, time
 from machine import UART
-from pyb import Pin
 import math
 
 #基本配置
@@ -20,7 +19,7 @@ sensor.skip_frames(time = 1000)
 
 #颜色阈值
 redpoint_threshold = (23, 97, 21, 71, 65, 1)
-#红点坐标，缓存最后一次红点坐标
+#红点坐标，缓存上一次红点坐标
 redpoint = ((0,0),(0,0))
 sub_redpoint = ((0,0),(0,0))
 #配置串口，P4为Tx P5为Rx
@@ -75,9 +74,6 @@ ANGLE_FACTOR = 180.0 / math.pi
 #用于稳定目标点切换
 at_target_counter = 0
 
-#p_in0 = Pin('P0', Pin.IN, Pin.PULL_UP)#设置p_in为输入引脚，并开启上拉电阻，复位用
-p_in1 = Pin('P1', Pin.IN, Pin.PULL_UP)#停止光标移动
-p_in2 = Pin('P2', Pin.IN, Pin.PULL_UP)#重启光标移动
 
 #发送数据包
 def send_packet(data):
@@ -216,7 +212,7 @@ def stdVertex(
 
 
 
-#计算出黑框外顶点，识别逻辑为累计五次所得的矩形框中心点偏移范围不大于9像素
+#计算出黑框外顶点，识别逻辑为累计三次所得的矩形框中心点偏移范围不大于9像素
 while(c_count <= 3):
     img = sensor.snapshot()
 
@@ -298,22 +294,22 @@ while(True):
     print(blackframe_corners)
 
 
-
     redpoint = find_redpoint(redpoint_threshold)
 
+    #---------------------------可加选项-----------------------------#
     if path_idx == 0 and p_count == 0:
         # 前馈补偿（根据实际机械特性调整）
         Servo_data = angle_cal(5, 5)  # 预置初始偏移
         send_packet(Servo_data)
         time.sleep_ms(100)  # 等待机械响应
+    #----------------------------------------------------------------#
+
     if redpoint:
-        img.draw_cross(redpoint[0], redpoint[1], color=(0, 255, 0))
-
-
+        img.draw_cross(redpoint[0], redpoint[1], color=(0, 255, 0))   #标注红点位置
 
         error_x = redpoint[0] - tx
         error_y = redpoint[1] - ty
-        at_target_counter += 1 if abs(error_x) <= 3 and abs(error_y) <= 4 else 0
+        at_target_counter += 1 if abs(error_x) <= 3 and abs(error_y) <= 4 else 0  #切换目标点
         m_count = 1
         if n_count == 0:
             error_x0 = redpoint[0] - tx
@@ -323,11 +319,15 @@ while(True):
             time.sleep_ms(40)
 
         if ((abs(error_x) >= 2) or (abs(error_y) >= 2)):
+
+            #---------------------------可加选项-----------------------------#
             if first_edge and path_idx < 5:  # 前5个路径点使用软启动
                Ki_adj = Ki * (path_idx / 5)  # 线性渐增
             else:
                Ki_adj = Ki
-            if ((abs(error_x) >= 8) or (abs(error_y) >= 8)):#用积进的pid
+            #----------------------------------------------------------------#
+
+            if ((abs(error_x) >= 8) or (abs(error_y) >= 8)):#用激进的pid
                 output_x, last_error_x,integral_x = pid_compute(error_x,last_error_x,integral_x,eff_Kp,Ki_adj,eff_Kd)
                 output_y, last_error_y,integral_y = pid_compute(error_y,last_error_y,integral_y,eff_Kp,Ki_adj,eff_Kd)
                 print("调用激进参数")
@@ -338,8 +338,10 @@ while(True):
                 Servo_data = angle_cal(output_x,output_y)
             send_packet(Servo_data)
         sub_redpoint = redpoint
+    
+    #丢点时重复发上次数据，主要是为了让激光动，只有动才能更容易被识别
     else:
-        if m_count == 1:
+        if m_count == 1:                    #防止在完全没有识别到时进入程序
             error_x = sub_redpoint[0] - tx
             error_y = sub_redpoint[1] - ty
             if ((abs(error_x) >= 2) or (abs(error_y) >= 2)):
@@ -360,11 +362,16 @@ while(True):
     if at_target_counter >= 2:  # 连续稳定2帧
         path_idx = (path_idx + 1) % path_len
         at_target_counter = 0
+
+        #---------------------------可加选项-----------------------------#
         # 新增：第一条边特殊处理
-        if path_idx == 1:  # 刚离开第一条边
+        if path_idx == 4:  # 刚离开第一条边                          
             integral_x *= 0.4  # 保留40%积分
             integral_y *= 0.4
             first_edge = False  # 标记第一条边已完成
+        #----------------------------------------------------------------#
+
+        #防止积分项过大
         if integral_x >= 0:
             integral_x -= 70
         else:
@@ -376,6 +383,7 @@ while(True):
 
         p_count += 1
 
+    #跑完一圈即停
     if p_count == 33:
         while(True):
             pass
@@ -384,11 +392,6 @@ while(True):
 
 
     time.sleep_ms(15)
-
-
-
-
-
 
 
 
