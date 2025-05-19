@@ -2,6 +2,7 @@
 ~$*
 *.tmp
 *.log
+*.uvguix.*
 
 .vscode/
 Thumbs.db
